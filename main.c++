@@ -1,59 +1,67 @@
 #include <Wire.h>
 #include <Adafruit_INA219.h>
+#include <ArduinoIoTCloud.h>
+#include <Arduino_ConnectionHandler.h>
 
-// Create INA219 instance
+// WiFi Credentials
+const char SSID[]     = "YOUR_WIFI_SSID";
+const char PASS[]     = "YOUR_WIFI_PASSWORD";
+
+// IoT Cloud Device ID and Secret Key (ersätt dessa med dina egna IoT Cloud-uppgifter)
+const char DEVICE_KEY[] = "YOUR_DEVICE_KEY";
+
+// INA219 sensor instance
 Adafruit_INA219 ina219;
 
-// Define variables to store measurements (these will be sent to the Arduino Cloud later)
-float current_mA = 0;
-float busVoltage = 0;
-float power_W = 0;
+// Cloud variabler
+float current_mA;
+float busVoltage;
+float power_W;
+
+// WiFi inställning för IoT Cloud
+void initProperties() {
+  ArduinoCloud.addProperty(current_mA, READ, ON_CHANGE);
+  ArduinoCloud.addProperty(busVoltage, READ, ON_CHANGE);
+  ArduinoCloud.addProperty(power_W, READ, ON_CHANGE);
+}
+
+WiFiConnectionHandler ArduinoIoTPreferredConnection(SSID, PASS);
 
 void setup() {
-  Serial.begin(115200); // Initialize serial communication for debugging (optional)
-
-  // Initialize the INA219 sensor
+  Serial.begin(115200);
+  ina219.begin();
+  
+  // Kontrollera om sensorn är ansluten
   if (!ina219.begin()) {
     Serial.println("Failed to find INA219 chip");
-    while (1);  // Halt program if sensor is not found
+    while (1);  // Avbryt om sensorn inte hittas
   }
-
-  // Optional: Calibrate the INA219 sensor
-  ina219.setCalibration_32V_2A();
-
-  // **TODO**: Setup Arduino IoT Cloud
-  // Write the code to connect your Arduino to the Arduino IoT Cloud here
-  // Use Arduino Cloud IoT libraries to define cloud variables (current, voltage, power)
-  // Example: ArduinoCloud.addProperty(current_mA, READ, 1 * SECONDS);
-
-  // **TODO**: Setup WiFi connection
-  // Connect to WiFi network (SSID and password)
-  // Example: ArduinoCloud.begin(SSID, PASSWORD);
+  
+  ina219.setCalibration_32V_2A();  // Kalibrera sensorn för 32V och 2A
+  
+  // Anslut till Arduino IoT Cloud
+  ArduinoCloud.begin(DEVICE_KEY);
+  ArduinoCloud.addProperty(current_mA, READ, ON_CHANGE);
+  ArduinoCloud.addProperty(busVoltage, READ, ON_CHANGE);
+  ArduinoCloud.addProperty(power_W, READ, ON_CHANGE);
+  
+  // Vänta på uppkoppling till WiFi
+  ArduinoCloud.addWiFiConnection(SSID, PASS);
 }
 
 void loop() {
-  // Measure current (in milliamps) drawn by the motor
+  ArduinoCloud.update();  // Uppdatera molnanslutningen
+  
+  // Läsa och beräkna sensorvärden
   current_mA = ina219.getCurrent_mA();
-
-  // Measure voltage (in volts) across the motor
   busVoltage = ina219.getBusVoltage_V();
-
-  // Calculate power (in watts) drawn by the motor
-  power_W = busVoltage * (current_mA / 1000.0);  // Convert mA to A
-
-  // **TODO**: Send data to Arduino IoT Cloud
-  // Send the measured values to the cloud variables
-  // Example: cloud_variable_current = current_mA;
-  //          cloud_variable_voltage = busVoltage;
-  //          cloud_variable_power = power_W;
-
-  // **Optional**: If you want to log or debug data locally, you can print it
+  power_W = busVoltage * (current_mA / 1000.0);  // Effekt i watt
+  
+  // Skriv ut i Serial Monitor för att verifiera värden
   Serial.print("Current (mA): "); Serial.println(current_mA);
   Serial.print("Voltage (V): "); Serial.println(busVoltage);
   Serial.print("Power (W): "); Serial.println(power_W);
   Serial.println("--------");
 
-  // **TODO**: Delay or adjust the loop frequency if needed
-  // You may want to control how frequently the data is sent to the cloud.
-  // Example: delay(1000); // Send every 1 second
+  delay(1000);  // Skicka data var sekund
 }
